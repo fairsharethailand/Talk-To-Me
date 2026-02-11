@@ -2,19 +2,20 @@ import streamlit as st
 from gtts import gTTS
 import base64, os, uuid, random
 
-# --- Initial Setup ---
-st.set_page_config(page_title="TPRS Magic Wheel V58.4", layout="wide")
+# 1. Setup
+st.set_page_config(page_title="TPRS Magic Wheel V58.5", layout="wide")
+
 if 'display_text' not in st.session_state: st.session_state.display_text = ""
 if 'audio_key' not in st.session_state: st.session_state.audio_key = 0
 
-# --- Grammar Database ---
+# --- Grammar Data ---
 PAST_TO_INF = {"went": "go", "ate": "eat", "saw": "see", "bought": "buy", "had": "have", "did": "do", "drank": "drink", "slept": "sleep", "wrote": "write", "came": "come", "ran": "run", "met": "meet", "spoke": "speak", "took": "take", "found": "find", "gave": "give", "thought": "think", "brought": "bring", "told": "tell", "made": "make", "cut": "cut", "put": "put", "hit": "hit", "read": "read", "cost": "cost"}
 IRREGULAR_PLURALS = ["children", "people", "men", "women", "mice", "teeth", "feet", "geese", "oxen"]
 
-# --- Core Functions ---
+# --- Helper Functions ---
 def check_tense(pred):
     w = pred.split()
-    if not w: return "unknown"
+    if not w: return "present"
     v = w[0].lower().strip()
     if v.endswith("ed") or v in PAST_TO_INF: return "past"
     return "present"
@@ -30,7 +31,8 @@ def conjugate_singular(pred):
 def get_aux(subj, p1, p2):
     if check_tense(p1) == "past" or check_tense(p2) == "past": return "Did"
     s = subj.lower().strip()
-    if s in IRREGULAR_PLURALS or 'and' in s or s in ['i', 'you', 'we', 'they'] or (s.endswith('s') and s not in ['james', 'charles', 'boss']): return "Do"
+    if s in IRREGULAR_PLURALS or 'and' in s or s in ['i', 'you', 'we', 'they'] or (s.endswith('s') and s not in ['james', 'charles', 'boss']):
+        return "Do"
     return "Does"
 
 def to_inf(pred, other):
@@ -52,7 +54,7 @@ def build_logic(q_type, d):
     subj_r, pred_r = (s1 or "He"), (p1 or "is here")
     subj_t = s2 if s2 != "-" else s1
     pred_t = p2 if p2 != "-" else p1
-    be_verbs = ['is', 'am', 'are', 'was', 'were', 'can', 'will', 'must']
+    be_verbs = ['is', 'am', 'are', 'was', 'were', 'can', 'will', 'must', 'should']
 
     def is_be(p): return p.lower().split() and p.lower().split()[0] in be_verbs
     def swap(s, p): 
@@ -69,6 +71,14 @@ def build_logic(q_type, d):
     if q_type == "No-Q":
         if is_be(pred_t): return swap(subj_t, pred_t) + "?"
         return f"{get_aux(subj_t, pred_t, pred_r)} {subj_t} {to_inf(pred_t, pred_r)}?"
+    if q_type == "Either/Or":
+        if s2 != "-" and s1.lower() != s2.lower():
+            if is_be(pred_r): return f"{swap(subj_r, pred_r).replace('?', '')} or {subj_t}?"
+            return f"{get_aux(subj_r, pred_r, pred_t)} {subj_r} or {subj_t} {to_inf(pred_r, pred_t)}?"
+        else:
+            p_alt = p2 if p2 != "-" else "something else"
+            if is_be(pred_r): return f"{swap(subj_r, pred_r)} or {p_alt}?"
+            return f"{get_aux(subj_r, pred_r, p_alt)} {subj_r} {to_inf(pred_r, p_alt)} or {to_inf(p_alt, pred_r)}?"
     if q_type == "Who":
         v = pred_r.lower().split()[0]
         rest = " ".join(pred_r.split()[1:])
@@ -93,18 +103,34 @@ def play_voice(text):
     except: pass
 
 # --- UI Layout ---
-st.title("🎡 TPRS Magic Wheel V58.4")
+st.title("🎡 TPRS Magic Wheel V58.5")
 m_in = st.text_input("📝 Main Sentence", "The children eat the cake.")
 c1, c2 = st.columns(2)
 with c1:
-    sr, pr = st.text_input("Subject (R):", "The children"), st.text_input("Predicate (R):", "eat the cake")
+    sr = st.text_input("Subject (R):", "The children")
+    pr = st.text_input("Predicate (R):", "eat the cake")
 with c2:
-    st_in, pt = st.text_input("Subject (T):", "-"), st.text_input("Predicate (T):", "eat the bread") 
+    st_in = st.text_input("Subject (T):", "-")
+    pt = st.text_input("Predicate (T):", "eat the bread") 
 
+data = {'s1':sr, 'p1':pr, 's2':st_in, 'p2':pt, 'main_sent':m_in}
+st.divider()
+
+clicked = None
 if st.button("🎰 RANDOM TRICK", use_container_width=True, type="primary"):
-    clicked = random.choice(["Statement", "Yes-Q", "No-Q", "Negative", "Who", "What", "Where", "When", "How", "Why"])
-    res = build_logic(clicked, {'s1':sr, 'p1':pr, 's2':st_in, 'p2':pt, 'main_sent':m_in})
-    st.session_state.display_text = f"🎯 {clicked}: {res}"
-    play_voice(res)
+    clicked = random.choice(["Statement", "Yes-Q", "No-Q", "Negative", "Either/Or", "Who", "What", "Where", "When", "How", "Why"])
 
-if st.session_state.display_text: st.info(st.session_state.display_text)
+row1 = st.columns(5)
+btns1 = [("📢 Statement", "Statement"), ("✅ Yes-Q", "Yes-Q"), ("❌ No-Q", "No-Q"), ("🚫 Negative", "Negative"), ("⚖️ Either/Or", "Either/Or")]
+for i, (l, m) in enumerate(btns1):
+    if row1[i].button(l, use_container_width=True): clicked = m
+
+row2 = st.columns(6)
+btns2 = ["Who", "What", "Where", "When", "How", "Why"]
+for i, wh in enumerate(btns2):
+    if row2[i].button(f"❓ {wh}", use_container_width=True): clicked = wh
+
+if clicked:
+    res = build_logic(clicked, data)
+    st.session_state.display_text = f"🎯 {clicked}: {res}"
+    play_voice
