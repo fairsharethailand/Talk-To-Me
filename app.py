@@ -7,7 +7,7 @@ import random
 import json  # นำเข้าสำหรับจัดการไฟล์ verbs.json
 
 # 1. ตั้งค่าหน้าเว็บ
-st.set_page_config(page_title="Speak V1.0", layout="wide")
+st.set_page_config(page_title="Speak V1.2", layout="wide")
 
 # 2. Session State
 if 'display_text' not in st.session_state:
@@ -173,7 +173,7 @@ def play_voice(text):
     except: pass
 
 # --- UI ---
-st.title("🎡 Speak V1.0")
+st.title("🎡 Speak V1.2")
 m_in = st.text_input("📝 Main Sentence", "The children make a cake.")
 c1, c2 = st.columns(2)
 with c1: sr, pr = st.text_input("Subject (R):", "The children"), st.text_input("Predicate (R):", "make a cake")
