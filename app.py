@@ -4,7 +4,7 @@ import base64
 import os
 import uuid
 import random
-import json  # เพิ่มบรรทัดนี้
+import json  # นำเข้าสำหรับจัดการไฟล์ verbs.json
 
 # 1. ตั้งค่าหน้าเว็บ
 st.set_page_config(page_title="Speak V1.0", layout="wide")
@@ -15,19 +15,30 @@ if 'display_text' not in st.session_state:
 if 'audio_key' not in st.session_state:
     st.session_state.audio_key = 0
 
-# --- Grammar Logic (ดึงข้อมูลจากภายนอก) ---
+# --- Grammar Logic ---
 
 def load_irregular_verbs():
+    """โหลดข้อมูล Irregular Verbs จากไฟล์ภายนอก"""
     try:
-        with open('verbs.json', 'r', encoding='utf-8') as f:
-            return json.load(f)
-    except FileNotFoundError:
-        # ถ้าหาไฟล์ไม่เจอ ให้ใช้ค่าเริ่มต้นพื้นฐานป้องกันโปรแกรมพัง
-        return {"went": "go", "ate": "eat", "had": "have"}
+        # ตรวจสอบว่ามีไฟล์ verbs.json หรือไม่
+        if os.path.exists('verbs.json'):
+            with open('verbs.json', 'r', encoding='utf-8') as f:
+                return json.load(f)
+        else:
+            # ถ้าไม่มีไฟล์ ให้ใช้ค่า Default พื้นฐาน
+            return {
+                "went": "go", "ate": "eat", "saw": "see", "bought": "buy", 
+                "had": "have", "did": "do", "drank": "drink", "slept": "sleep", 
+                "wrote": "write", "came": "come", "ran": "run", "met": "meet",
+                "spoke": "speak", "took": "take", "found": "find", "gave": "give",
+                "thought": "think", "brought": "bring", "told": "tell", "made": "make"
+            }
+    except Exception:
+        return {"went": "go", "ate": "eat"}
 
 PAST_TO_INF = load_irregular_verbs()
 
-# เพิ่ม mice, teeth, feet, geese, oxen, data, media เพื่อความครอบคลุม
+# รายชื่อคำนามพหูพจน์ที่ไม่เปลี่ยนรูปตามปกติ
 IRR_PL = ["children", "people", "men", "women", "mice", "teeth", "feet", "geese", "oxen", "data", "media"]
 
 def is_present_perfect(predicate):
@@ -52,11 +63,11 @@ def conjugate_singular(predicate):
     if not words: return ""
     v = words[0].lower(); rest = " ".join(words[1:])
     
-    # --- ส่วนที่เพิ่มใหม่ ---
+    # เงื่อนไขเฉพาะ: ถ้าเจอ have หรือ has ให้เปลี่ยนเป็น has เท่านั้น
     if v in ['have', 'has']:
         return f"has {rest}".strip()
-    # ----------------------
-
+    
+    # Logic เดิมสำหรับการเติม s/es
     if v.endswith(('ch', 'sh', 'x', 's', 'z', 'o')): v += "es"
     elif v.endswith('y') and len(v) > 1 and v[-2] not in 'aeiou': v = v[:-1] + "ies"
     else: v += "s"
@@ -64,24 +75,16 @@ def conjugate_singular(predicate):
 
 def get_auxiliary(subject, pred_target, pred_other):
     if is_present_perfect(pred_target): return None 
-    
-    # 1. เช็ค Past Tense
     if check_tense_type(pred_target) == "past" or check_tense_type(pred_other) == "past":
         return "Did"
-    
-    # 2. เช็ค Subject (Present Tense)
     s_clean = subject.lower().strip()
-    s_words = s_clean.split() # แยกคำ เช่น "the children" -> ["the", "children"]
-    
-    # Logic: ถ้ามีคำใดคำหนึ่งในประธาน ตรงกับ Irregular Plural List ให้ถือเป็นพหูพจน์
+    s_words = s_clean.split()
     found_irregular = any(word in IRR_PL for word in s_words)
-    
     if (found_irregular or 
         'and' in s_clean or 
         s_clean in ['i', 'you', 'we', 'they'] or 
         (s_clean.endswith('s') and s_clean not in ['james', 'charles', 'boss'])):
         return "Do"
-        
     return "Does"
 
 def to_infinitive(predicate, other_predicate):
@@ -117,8 +120,6 @@ def build_logic(q_type, data):
     if q_type == "Negative":
         if has_be_verb(pred_t) or is_present_perfect(pred_t):
             return f"No, {subj_t} {pred_t.split()[0]} not {' '.join(pred_t.split()[1:])}."
-        
-        # แก้ไขให้ใช้ don't / doesn't / didn't
         aux = get_auxiliary(subj_t, pred_t, pred_r)
         neg_word = "don't" if aux == "Do" else ("doesn't" if aux == "Does" else "didn't")
         return f"No, {subj_t} {neg_word} {to_infinitive(pred_t, pred_r)}."
@@ -137,6 +138,7 @@ def build_logic(q_type, data):
         v = words[0].lower(); rest = " ".join(words[1:])
         if v in ['am', 'are']: return f"Who is {rest}?"
         if v == 'were': return f"Who was {rest}?"
+        # เรียกใช้ logic conjugate_singular ที่แก้ใหม่เรื่อง have/has
         if not has_be_verb(pred_r) and check_tense_type(pred_r) == "present":
             return f"Who {conjugate_singular(pred_r)}?"
         return f"Who {pred_r}?"
