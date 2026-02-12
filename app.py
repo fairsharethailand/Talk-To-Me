@@ -4,6 +4,7 @@ import base64
 import os
 import uuid
 import random
+import json  # เพิ่มบรรทัดนี้
 
 # 1. ตั้งค่าหน้าเว็บ
 st.set_page_config(page_title="Speak V1.0", layout="wide")
@@ -14,14 +15,17 @@ if 'display_text' not in st.session_state:
 if 'audio_key' not in st.session_state:
     st.session_state.audio_key = 0
 
-# --- Grammar Logic ---
-PAST_TO_INF = {
-    "went": "go", "ate": "eat", "saw": "see", "bought": "buy", 
-    "had": "have", "did": "do", "drank": "drink", "slept": "sleep", 
-    "wrote": "write", "came": "come", "ran": "run", "met": "meet",
-    "spoke": "speak", "took": "take", "found": "find", "gave": "give",
-    "thought": "think", "brought": "bring", "told": "tell", "made": "make",
-    "cut": "cut", "put": "put", "hit": "hit", "read": "read", "cost": "cost"
+# --- Grammar Logic (ดึงข้อมูลจากภายนอก) ---
+
+def load_irregular_verbs():
+    try:
+        with open('verbs.json', 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except FileNotFoundError:
+        # ถ้าหาไฟล์ไม่เจอ ให้ใช้ค่าเริ่มต้นพื้นฐานป้องกันโปรแกรมพัง
+        return {"went": "go", "ate": "eat", "had": "have"}
+
+PAST_TO_INF = load_irregular_verbs()
 }
 
 # เพิ่ม mice, teeth, feet, geese, oxen, data, media เพื่อความครอบคลุม
