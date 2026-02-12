@@ -26,7 +26,6 @@ def load_irregular_verbs():
         return {"went": "go", "ate": "eat", "had": "have"}
 
 PAST_TO_INF = load_irregular_verbs()
-}
 
 # เพิ่ม mice, teeth, feet, geese, oxen, data, media เพื่อความครอบคลุม
 IRR_PL = ["children", "people", "men", "women", "mice", "teeth", "feet", "geese", "oxen", "data", "media"]
